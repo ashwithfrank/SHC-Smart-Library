@@ -1,0 +1,222 @@
+/* ==========================================================
+   SHC Smart Library - styles.css
+   Sections: 1 Theme  2 Base  3 Layout  4 Cards  5 Tables
+             6 Forms & Buttons  7 Badges  8 Toast  9 Login
+             10 Responsive
+   ========================================================== */
+
+/* 1. THEME (colours as variables, light + dark) */
+:root {
+  --bg: #f6f4ef;
+  --card: #ffffff;
+  --ink: #1d2433;
+  --muted: #667085;
+  --primary: #7a1f2b;
+  --primary-dark: #5c1721;
+  --line: #e4e0d8;
+  --ok: #1b7a4b;
+  --warn: #b26a00;
+  --bad: #b42318;
+  --info: #2456a6;
+  --radius: 12px;
+
+  /* keeps content clear of phone notches and bars */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #15171c;
+    --card: #1e2128;
+    --ink: #eceae4;
+    --muted: #9aa1ad;
+    --primary: #d6616f;
+    --primary-dark: #e8808c;
+    --line: #2e323b;
+    --ok: #5fd09a;
+    --warn: #f0b24d;
+    --bad: #ff8a7e;
+    --info: #7fa9ee;
+  }
+}
+
+/* 2. BASE */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+h2 { margin: 0 0 14px; font-size: 22px; }
+h3 { margin: 18px 0 8px; font-size: 16px; }
+.note { font-size: 12px; color: var(--muted); }
+
+/* 3. LAYOUT (sidebar + main) */
+#app { display: flex; min-height: 100%; }
+
+aside {
+  width: 220px;
+  flex-shrink: 0;
+  padding: 16px;
+  background: var(--primary-dark);
+  color: #fff;
+}
+aside h1 { margin: 0 0 2px; font-size: 16px; }
+aside small { opacity: .75; }
+
+aside nav {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+aside button {
+  all: unset;
+  cursor: pointer;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #fff;
+  opacity: .85;
+}
+aside button:hover,
+aside button.on { background: rgba(255, 255, 255, .16); opacity: 1; }
+
+main { flex: 1; min-width: 0; max-width: 1100px; padding: 22px; }
+
+/* 4. CARDS & DASHBOARD STATS */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.stat b { display: block; font-size: 26px; color: var(--primary); }
+.stat span { font-size: 13px; color: var(--muted); }
+.empty { padding: 26px; text-align: center; color: var(--muted); }
+
+/* 5. TABLES + PAGINATION */
+.tw {
+  overflow-x: auto;               /* table scrolls inside, page never does */
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  padding: 9px 12px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 14px;
+  border-bottom: 1px solid var(--line);
+}
+th {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+tr:last-child td { border-bottom: 0; }
+
+.pg {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 6. FORMS & BUTTONS */
+input, select {
+  min-width: 0;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+}
+input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.row input, .row select { flex: 1 1 140px; }
+
+.btn {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 13px;
+  background: var(--primary);
+  color: #fff;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn.s, .btn.d {                  /* small outline buttons in tables */
+  margin: 1px;
+  padding: 5px 10px;
+  font-size: 13px;
+  background: transparent;
+}
+.btn.s { color: var(--primary); border: 1px solid var(--primary); }
+.btn.d { color: var(--bad);     border: 1px solid var(--bad); }
+
+/* 7. STATUS BADGES (Available, Borrowed, Waiting, Overdue...) */
+.b {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--line);
+}
+.available, .active, .fulfilled, .returned          { color: var(--ok); }
+.borrowed, .issued, .ready, .reserved               { color: var(--info); }
+.waiting, .held, .pending                           { color: var(--warn); }
+.overdue, .inactive, .cancelled, .expired, .rejected { color: var(--bad); }
+
+/* 8. TOAST MESSAGE */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 9;
+  max-width: 90%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--bg);
+}
+#toast.e { background: var(--bad); color: #fff; }   /* error version */
+
+/* 9. LOGIN SCREEN */
+.login { width: 100%; max-width: 380px; margin: 8vh auto; padding: 0 16px; }
+.login .card { display: flex; flex-direction: column; gap: 10px; }
+
+/* 10. RESPONSIVE (phones: sidebar becomes a top bar) */
+@media (max-width: 720px) {
+  #app { flex-direction: column; }
+  aside { width: auto; padding: 10px; }
+  aside nav { flex-direction: row; overflow-x: auto; margin-top: 8px; }
+  aside button { white-space: nowrap; }
+  main { padding: 14px; }
+}
