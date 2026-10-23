@@ -57,15 +57,69 @@ h2 { margin: 0 0 14px; font-size: 22px; }
 h3 { margin: 18px 0 8px; font-size: 16px; }
 .note { font-size: 12px; color: var(--muted); }
 
-/* 3. LAYOUT (sidebar + main) */
-#app { display: flex; min-height: 100%; }
+/* 3. LAYOUT (top header with Menu button + slide-out sidebar) */
+#app { min-height: 100%; }
 
-aside {
-  width: 220px;
-  flex-shrink: 0;
-  padding: 16px;
+/* Header: only the Menu button and the title */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
   background: var(--primary-dark);
   color: #fff;
+}
+.topbar .brand { font-weight: 600; }
+.menu-btn {
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+}
+.menu-btn:hover { background: rgba(255, 255, 255, .16); }
+
+/* Dark overlay behind the open sidebar (click it to close) */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, .45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+#app.nav-open .backdrop { opacity: 1; pointer-events: auto; }
+
+/* Sidebar: closed by default, slides in from the left */
+aside {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  width: 260px;
+  max-width: 85vw;
+  overflow-y: auto;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--primary-dark);
+  color: #fff;
+  transform: translateX(-100%);
+  visibility: hidden;                 /* closed sidebar cannot be tabbed into */
+  transition: transform .25s, visibility .25s;
+}
+#app.nav-open aside { transform: none; visibility: visible; }
+
+.side-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 aside h1 { margin: 0 0 2px; font-size: 16px; }
 aside small { opacity: .75; }
@@ -86,8 +140,17 @@ aside button {
 }
 aside button:hover,
 aside button.on { background: rgba(255, 255, 255, .16); opacity: 1; }
+aside button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 
-main { flex: 1; min-width: 0; max-width: 1100px; padding: 22px; }
+/* the ✕ close button */
+aside .close-btn {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+main { width: 100%; min-width: 0; max-width: 1100px; margin: 0 auto; padding: 22px; }
 
 /* 4. CARDS & DASHBOARD STATS */
 .grid {
@@ -199,7 +262,7 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
   left: 50%;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  z-index: 9;
+  z-index: 60;
   max-width: 90%;
   padding: 10px 16px;
   border-radius: 10px;
@@ -212,11 +275,8 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 .login { width: 100%; max-width: 380px; margin: 8vh auto; padding: 0 16px; }
 .login .card { display: flex; flex-direction: column; gap: 10px; }
 
-/* 10. RESPONSIVE (phones: sidebar becomes a top bar) */
+/* 10. RESPONSIVE (phones: smaller padding; sidebar is already a slide-out) */
 @media (max-width: 720px) {
-  #app { flex-direction: column; }
-  aside { width: auto; padding: 10px; }
-  aside nav { flex-direction: row; overflow-x: auto; margin-top: 8px; }
-  aside button { white-space: nowrap; }
   main { padding: 14px; }
+  .topbar { padding: 8px 12px; }
 }
