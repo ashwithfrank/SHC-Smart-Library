@@ -190,7 +190,7 @@ const VIEWS = {
       .filter(c => c.st !== 'issued')
       .map(c => {
         const r = c.st === 'held' ? DB.res.find(x => x.id === c.hold) : null;
-        return `<option value="${c.id}">${esc(c.id)} &middot; ${esc(book(c.book).title)}${r ? ' (held for ' + esc(r.sid) + ')' : ''}</option>`;
+        return `<option value="${c.id}">${esc(c.code)} &middot; ${esc(book(c.book).title)}${r ? ' (held for ' + esc(r.sid) + ')' : ''}</option>`;
       }).join('');
  
     const students = DB.students.filter(s => s.active)
