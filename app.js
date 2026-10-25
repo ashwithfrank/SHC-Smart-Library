@@ -63,8 +63,6 @@ function render() {
     return;
   }
 
-  sweep();                        // expire reservations, flag overdue loans
-
   const menu = NAV[U.role];
   if (!VIEWS[V]) V = menu[0][0];  // unknown screen -> first menu item
 
