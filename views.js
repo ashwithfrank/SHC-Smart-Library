@@ -160,7 +160,7 @@ const VIEWS = {
         const heldCopy = DB.copies.find(c => c.hold === r.id);
  
         const status = badge(r.status) +
-          (r.status === 'Waiting' ? ' #' + position(r) : '') +
+          (r.status === 'Waiting' ? ' #' + (r.pos ?? position(r)) : '') +
           (r.exp && r.status === 'Ready' ? `<br><span class="note">until ${fd(r.exp)}</span>` : '');
  
         const fulfil = !own && r.status === 'Ready' && heldCopy
