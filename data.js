@@ -1,45 +1,40 @@
 /* ==========================================================
-   data.js - database, helpers, seed data
-   Loaded FIRST. Every other file uses what is defined here.
+   data.js (Supabase version) - helpers + loading data
+   Loaded after supabase.js.
 
-   PROTOTYPE NOTE: data is saved in this browser's localStorage.
-   A real multi-user library needs a server + PostgreSQL.
+   Idea: refresh() downloads the data from Supabase and puts it in
+   the SAME shape the screens already use (DB.books, DB.loans ...).
+   So views.js keeps working. Actions call the database functions,
+   then refresh() and render() again.
    ========================================================== */
 
-const STORAGE_KEY = 'shc_lib_v1';
-
 /* ---------- Global app state ---------- */
-let DB;          // the whole database (students, books, loans...)
-let U = null;    // logged-in user (null = logged out)
-let V = 'home';  // current screen name
-let Q = '';      // current search text
-let P = 0;       // current table page (0 = first)
+const emptyDB = () => ({
+  set: { max: 3, days: 14, pickup: 2, dur: {} },
+  students: [], staff: [], books: [], copies: [],
+  loans: [], res: [], notes: [], audit: []
+});
+
+let DB = emptyDB();   // data shown on screen (loaded from Supabase)
+let U = null;         // logged-in user (null = logged out)
+let V = 'home';       // current screen name
+let Q = '';           // current search text
+let P = 0;            // current table page (0 = first)
 
 /* ---------- Small helpers ---------- */
 const $ = id => document.getElementById(id);
-const g = id => $(id).value.trim();               // read an input's value
-const uid = prefix => prefix + Math.random().toString(36).slice(2, 8).toUpperCase();
+const g = id => $(id).value.trim();
 const now = () => new Date();
 const iso = d => d.toISOString();
-const fd = s => (s ? new Date(s).toLocaleDateString('en-IN') : '-');   // format date
+const fd = s => (s ? new Date(s).toLocaleDateString('en-IN') : '-');
 
-// Escape text before putting it in HTML (stops script injection)
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[c]));
 
-// One-way password hash (SHA-256 with the user ID as salt)
-async function hash(id, password) {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id + ':' + password));
-  return [...new Uint8Array(bytes)].map(x => x.toString(16).padStart(2, '0')).join('');
-}
+// Old screens still call save() after some buttons. The database saves now, so do nothing.
+const save = () => {};
 
-/* ---------- Saving ---------- */
-function save() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch (e) { /* storage full or blocked */ }
-}
-
-/* ---------- Messages ---------- */
 function toast(message, isError) {
   const t = $('toast');
   t.textContent = message;
@@ -49,63 +44,127 @@ function toast(message, isError) {
   toast.timer = setTimeout(() => (t.hidden = true), 3200);
 }
 
-// Notification for one student ID, or 'STAFF' for all staff
-const notify = (to, message) =>
-  DB.notes.unshift({ id: uid('N'), to, m: message, at: iso(now()), read: false });
-
-// Audit log entry (who did what)
-const log = action =>
-  DB.audit.unshift({ at: iso(now()), by: U ? U.id : '-', a: action });
+// Run a Supabase request; throw its error if there is one
+async function must(request) {
+  const { data, error } = await request;
+  if (error) throw error;
+  return data;
+}
 
 /* ---------- Lookups and checks ---------- */
 const stu   = id => DB.students.find(s => s.id === id);
 const book  = id => DB.books.find(b => b.id === id);
-const staff = () => U && U.role !== 'student';    // librarian or admin?
-const admin = () => U && U.role === 'admin';      // admin only?
+const staff = () => U && U.role !== 'student';
+const admin = () => U && U.role === 'admin';
 
-// Academic year, calculated from admission year + course length
 function yr(s) {
   const duration = DB.set.dur[s.course] || 3;
   const y = now().getFullYear() - s.adm + (now().getMonth() >= 5 ? 1 : 0);
   return y > duration ? 'Graduated' : 'Year ' + Math.max(1, y) + ' of ' + duration;
 }
 
-// Number of copies of a book that are free right now
 const avail = bookId => DB.copies.filter(c => c.book === bookId && c.st === 'available').length;
-
-// Coloured status label, e.g. badge('Overdue')
 const badge = s => `<span class="b ${s.toLowerCase().replace(/ /g, '')}">${esc(s)}</span>`;
 
-/* ---------- First-time setup ---------- */
+/* ---------- Logged-in user ---------- */
+const loadProfile = userId =>
+  must(sb.from('profiles').select('*').eq('id', userId).maybeSingle());
+
+function setUser(p) {
+  // U.id is the college ID (what people type); U.uuid is the Supabase id
+  U = { id: p.login_id, uuid: p.id, name: p.name, role: p.role,
+        course: p.course, adm: p.adm_year, active: p.active };
+}
+
+/* ---------- Load everything this user is allowed to see ---------- */
+// Row Level Security in the database decides what comes back:
+// a student only receives their own loans/reservations/notifications.
+async function refresh() {
+  try { await sb.rpc('run_sweep'); } catch (e) { /* not critical */ }
+
+  const [set, profiles, books, copies, loans, res, notes] = await Promise.all([
+    must(sb.from('settings').select('*').eq('id', 1).single()),
+    must(sb.from('profiles').select('*').order('login_id')),
+    must(sb.from('books').select('*').order('id')),
+    must(sb.from('copies').select('*').order('id')),
+    must(sb.from('loans').select('*').order('issued_at', { ascending: false })),
+    must(sb.from('reservations').select('*').order('created_at', { ascending: false })),
+    must(sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(200))
+  ]);
+  const audit = admin()
+    ? await must(sb.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(200))
+    : [];
+
+  // uuid -> college ID, so screens can show "DEMO001" instead of a long uuid
+  const login = {};
+  profiles.forEach(p => (login[p.id] = p.login_id));
+
+  const code = {};   // copy id -> readable code like B3-C2
+  copies.forEach(c => (code[c.id] = 'B' + c.book_id + '-C' + c.copy_no));
+
+  const holdBy = {}; // copy id -> reservation id (copies waiting for pickup)
+  res.forEach(r => { if (r.status === 'Ready' && r.copy_id) holdBy[r.copy_id] = r.id; });
+
+  DB = {
+    set: { max: set.max_loans, days: set.loan_days, pickup: set.pickup_days, dur: set.durations },
+
+    students: profiles.filter(p => p.role === 'student').map(p => ({
+      id: p.login_id, uuid: p.id, name: p.name, course: p.course, adm: p.adm_year,
+      mobile: p.mobile || '', email: p.email || '', active: p.active
+    })),
+    staff: profiles.filter(p => p.role !== 'student').map(p => ({
+      id: p.login_id, uuid: p.id, name: p.name, email: p.email || '', role: p.role, active: p.active
+    })),
+
+    books: books.map(b => ({
+      id: b.id, title: b.title, author: b.author, isbn: b.isbn || '', cat: b.category,
+      pub: b.publisher || '', year: b.pub_year, archived: b.archived
+    })),
+    copies: copies.map(c => ({
+      id: c.id, code: code[c.id], book: c.book_id, st: c.status, hold: holdBy[c.id] ?? null
+    })),
+
+    loans: loans.map(l => ({
+      id: l.id, sid: login[l.student_id] || '?', copy: code[l.copy_id] || l.copy_id,
+      book: l.book_id, out: l.issued_at, due: l.due_at, ret: l.returned_at, od: l.overdue_notified
+    })),
+    res: res.map(r => ({
+      id: r.id, book: r.book_id, sid: login[r.student_id] || '?', type: r.type,
+      status: r.status, at: r.created_at, exp: r.expires_at, pos: null
+    })),
+
+    notes: notes.map(n => ({
+      id: n.id, to: n.for_staff ? 'STAFF' : (login[n.recipient] || '?'), m: n.message, at: n.created_at
+    })),
+    audit: audit.map(a => ({ at: a.created_at, by: login[a.actor] || '-', a: a.action }))
+  };
+
+  // A student only sees their own reservations, so ask the database for queue positions
+  if (U && U.role === 'student') {
+    await Promise.all(DB.res.filter(r => r.status === 'Waiting').map(async r => {
+      const { data } = await sb.rpc('queue_position', { p_res: r.id });
+      r.pos = data;
+    }));
+  }
+}
+
+/* ---------- Start-up: restore an existing login ---------- */
 async function init() {
-  try { DB = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { /* ignore */ }
-
-  if (!DB) {
-    DB = {
-      set: { max: 3, days: 14, pickup: 2, dur: { BCA: 3, 'B.Com': 3, 'B.A': 3, 'M.Com': 2 } },
-      students: [], staff: [], books: [], copies: [],
-      loans: [], res: [], notes: [], audit: []
-    };
-
-    // DEMO ACCOUNTS - development only. Remove before real use.
-    DB.students.push({
-      id: 'DEMO001', name: 'Demo Student', course: 'BCA', adm: 2024,
-      mobile: '', email: '', active: true, pw: await hash('DEMO001', 'student123') }
-   );
-    DB.staff.push(
-      { id: 'LIB001', name: 'Demo Librarian', email: '', role: 'librarian', active: true, pw: await hash('LIB001', 'lib12345') },
-      { id: 'ADM001', name: 'Demo Admin',     email: '', role: 'admin',     active: true, pw: await hash('ADM001', 'admin123') }
-    );
-
-    // Sample books: title, author, isbn, category, publisher, year, copies
-    [
-      ['Introduction to Algorithms', 'Cormen et al.',    '', 'Computer Science', '', 2020, 2],
-      ['Financial Accounting',       'R. Narayanaswamy', '', 'Commerce',         '', 2020, 1],
-      ['The Discovery of India',     'J. Nehru',         '', 'History',          '', 2020, 2],
-      ['Database System Concepts',   'Silberschatz',     '', 'Computer Science', '', 2020, 1]
-    ].forEach(b => addBook(...b));
-
-    save();
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      const p = await loadProfile(session.user.id);
+      if (p && p.active) {
+        setUser(p);
+        V = U.role === 'student' ? 'cat' : 'home';
+        await refresh();
+      } else {
+        await sb.auth.signOut();
+      }
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Could not connect to the database. Check supabase.js.', 1);
   }
   render();
 }
